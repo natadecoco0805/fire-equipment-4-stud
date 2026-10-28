@@ -86,7 +86,13 @@ export default function App() {
   }
   async function answerOne() {
     if (!current || selected === null) return
-    const correct = selected === current.answer
+    if (!current.verified || current.answerStatus === 'unconfirmed' || current.answerStatus === 'needs_review') {
+      setRevealed(true)
+      setNotice('この問題は正解未確認のため、採点・学習履歴への登録は行いません。')
+      return
+    }
+    const normalized = (value: number | string) => current.type === 'numeric' ? Number(value) : typeof value === 'string' ? value.trim().replace(/\\s+/g, '').toLowerCase() : value
+    const correct = normalized(selected) === normalized(current.answer)
     const a: Attempt = { id: crypto.randomUUID(), questionId: current.id, selected, correct, answeredAt: new Date().toISOString(), mode: screen === 'review' ? 'review' : screen === 'mock' ? 'mock' : 'practice' }
     await addAttempt(a)
     setSessionAnswers(old => [...old, {q:current, selected, correct}])
@@ -134,7 +140,7 @@ export default function App() {
     try {
       const data = JSON.parse(await file.text())
       const qs = Array.isArray(data) ? data : data.questions
-      if (!Array.isArray(qs) || !qs.every(q => q.id && q.category && q.prompt && q.explanation && q.answer !== undefined)) throw new Error('問題データの形式が正しくありません。')
+      if (!Array.isArray(qs) || !qs.every(q => q.id && q.category && q.prompt && typeof q.verified === 'boolean' && (q.answer !== undefined || q.verified === false))) throw new Error('問題データの形式が正しくありません。ID・カテゴリ・問題文・verified（真偽値）を確認してください。')
       await importQuestions(qs); await refresh(); setNotice(`${qs.length}問を取り込みました。`)
     } catch(e) { setNotice(e instanceof Error ? e.message : '問題の取り込みに失敗しました。') }
   }
@@ -170,10 +176,13 @@ export default function App() {
         <section className="page quiz-page">
           <div className="quiz-toolbar"><button className="back-button" onClick={()=>{setScreen('home');setQueue([])}}><ArrowLeft size={17}/> メニュー</button><span className="pill">{screen==='review'?'間違い復習':screen==='mock'?'模擬試験':'通常演習'}</span><button className={`icon-button ${currentBookmarked?'active':''}`} aria-label="ブックマーク" onClick={onBookmark}><Bookmark size={19} fill={currentBookmarked?'currentColor':'none'}/></button></div>
           {mode === 'one' && <><div className="question-progress"><span>QUESTION {index+1} / {queue.length}</span><div className="progress-track"><span style={{width:`${((index+1)/queue.length)*100}%`}}/></div></div>
-            {current && <article className="question-card"><div className="question-meta"><span>{current.category}</span><span>{current.kind}</span></div><h1>{current.prompt}</h1>
+            {current && <article className="question-card"><div className="question-meta"><span>{current.category}</span><span>{current.kind}</span>{(!current.verified || current.answerStatus === 'unconfirmed' || current.answerStatus === 'needs_review') && <span className="unverified-tag">正解未確認・採点対象外</span>}</div><h1>{current.prompt}</h1>
+              {(current.imageUrl || current.imageUrls?.length) && <div className="question-images">{[...(current.imageUrl ? [current.imageUrl] : []), ...(current.imageUrls || [])].map((src, imageIndex) => <a key={`${src.slice(0,48)}-${imageIndex}`} href={src} target="_blank" rel="noreferrer" aria-label={`問題画像${imageIndex + 1}を拡大表示`}><img src={src} alt={`問題資料 ${imageIndex + 1}`} loading="lazy" /></a>)}</div>}
               {current.choices && <div className="choice-list">{current.choices.map((choice,i)=><button key={choice} disabled={revealed} className={`choice ${selected===i?'selected':''} ${revealed && i===current.answer?'correct':''} ${revealed && selected===i && i!==current.answer?'incorrect':''}`} onClick={()=>setSelected(i)}><span className="choice-letter">{String.fromCharCode(65+i)}</span><span>{choice}</span>{revealed&&i===current.answer&&<CheckCircle2 size={18}/>}</button>)}</div>}
-              {revealed && <div className={`explanation ${selected===current.answer?'right':'wrong'}`}><strong>{selected===current.answer?'正解です':'不正解です'}</strong><p>{current.explanation}</p><small>出典・根拠：{current.source}</small></div>}
-              <div className="quiz-actions">{!revealed ? <button className="primary-button" disabled={selected===null} onClick={answerOne}>回答を確定する</button> : <button className="primary-button" onClick={nextQuestion}>{index+1===queue.length?'終了する':'次の問題へ'} <ArrowRight size={17}/></button>}</div>
+              {!current.choices && (current.type === 'written' || current.type === 'numeric') && <label className="written-answer"><span>{current.type === 'numeric' ? '数値を入力' : '解答を入力'}</span><input value={typeof selected === 'string' ? selected : ''} disabled={revealed} inputMode={current.type === 'numeric' ? 'decimal' : 'text'} onChange={e=>setSelected(e.target.value)} placeholder={current.type === 'numeric' ? '例：12.5' : '解答を入力してください'} /></label>}
+              {revealed && (!current.verified || current.answerStatus === 'unconfirmed' || current.answerStatus === 'needs_review') && <div className="explanation unverified-explanation"><strong>採点対象外（正解未確認）</strong><p>正解が確認されていないため、正誤判定・学習履歴への保存は行っていません。</p>{current.explanation && <p>{current.explanation}</p>}</div>}
+              {revealed && current.verified && current.answerStatus !== 'unconfirmed' && current.answerStatus !== 'needs_review' && <div className={`explanation ${selected===current.answer?'right':'wrong'}`}><strong>{selected===current.answer?'正解です':'不正解です'}</strong><p>{current.explanation}</p><small>出典・根拠：{current.source}</small></div>}
+              <div className="quiz-actions">{!revealed ? <button className="primary-button" disabled={selected===null || selected===''} onClick={answerOne}>回答を確定する</button> : <button className="primary-button" onClick={nextQuestion}>{index+1===queue.length?'終了する':'次の問題へ'} <ArrowRight size={17}/></button>}</div>
             </article>}
           </>}
           {mode === 'batch' && !batchSubmitted && <><div className="question-progress"><span>{queue.length}問まとめて解答</span><div className="progress-track"><span style={{width:'100%'}}/></div></div>
