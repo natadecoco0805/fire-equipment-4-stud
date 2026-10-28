@@ -5,10 +5,13 @@ export type Question = {
   type: 'choice' | 'numeric' | 'written'
   prompt: string
   choices?: string[]
+  imageUrl?: string
+  imageUrls?: string[]
   answer: number | string
   explanation: string
   source: string
   verified: boolean
+  answerStatus?: 'verified' | 'unconfirmed' | 'needs_review'
 }
 
 export const questions: Question[] = [
