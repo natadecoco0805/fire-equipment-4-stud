@@ -62,3 +62,15 @@ JSON配列、または `{ "questions": [...] }` を取り込めます。各問�
 - 試験時間カウントダウン、実技の記述・製図の本格採点、問題の年度フィルター、復習間隔の最適化、端末間同期は未実装です。
 - IndexedDBはブラウザのストレージ削除等で消える可能性があるため、定期的にバックアップしてください。
 - ビルド・実機・Cloudflareへのデプロイは、このZIP作成時点では実行確認していません。
+
+
+## 画像付き・記述式問題データ
+
+問題JSONでは `type` (`choice` / `numeric` / `written`)、`imageUrl`、`imageUrls`、`answerStatus` (`verified` / `unconfirmed` / `needs_review`) を使用できます。`verified: false` または `answerStatus` が未確認・要確認の問題は採点対象外として表示し、正誤を学習履歴に保存しません。
+
+画像は `imageUrl` / `imageUrls` に data URL として含めると、ブラウザのIndexedDB内に保存でき、GitHubリポジトリへ参考書画像を追加せずに済みます。参考書画像や問題本文を公開する場合は、利用許諾・著作権を確認してください。
+
+例:
+```json
+[{"id":"custom-kantei-001","category":"鑑別","kind":"過去問参考","type":"written","prompt":"画像の機器名を答えなさい。","imageUrls":["data:image/jpeg;base64,..."],"answer":"機器名","explanation":"確認済みの解説","source":"出典・ページなど","verified":true,"answerStatus":"verified"}]
+```
